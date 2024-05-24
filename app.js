@@ -13,30 +13,58 @@ app.get('/', (req, res) => {
   res.sendFile(__dirname + '/public/index.html');
 });
 
-app.get('/hello', (req, res) => {
-  res.send('hello');
-});
-
 let connectedPeers = [];
 
 io.on('connection', (socket) => {
-  console.log('user connected to socket.io server');
   connectedPeers.push(socket.id);
-  console.log('connectedPeers: ', connectedPeers);
 
-  socket.on('message', (arg, callback) => {
-    console.log('log--arg ', arg); // "world"
+  console.log('log--connectedPeers ', connectedPeers, socket.id);
+
+  socket.on('pre-offer', (data) => {
+    console.log('pre-offer-came');
+    const { calleePersonalCode, callType } = data;
+    console.log(calleePersonalCode);
+    const connectedPeer = connectedPeers.find(
+      (peerSocketId) => peerSocketId === calleePersonalCode
+    );
+
+    console.log(connectedPeer);
+
+    if (connectedPeer) {
+      const data = {
+        callerSocketId: socket.id,
+        callType,
+      };
+      io.to(calleePersonalCode).emit('pre-offer', data);
+    } else {
+      const data = {
+        preOfferAnswer: 'CALLEE_NOT_FOUND',
+      };
+      io.to(socket.id).emit('pre-offer-answer', data);
+    }
+  });
+
+  socket.on('pre-offer-answer', (data) => {
+    const { callerSocketId } = data;
+
+    const connectedPeer = connectedPeers.find(
+      (peerSocketId) => peerSocketId === callerSocketId
+    );
+
+    if (connectedPeer) {
+      io.to(data.callerSocketId).emit('pre-offer-answer', data);
+    }
   });
 
   socket.on('disconnect', () => {
-    console.log('user disconnected', socket.id);
+    console.log('user disconnected');
 
     const newConnectedPeers = connectedPeers.filter(
       (peerSocketId) => peerSocketId !== socket.id
     );
 
     connectedPeers = newConnectedPeers;
-    console.log('disconnect connectedPeers: ', connectedPeers);
+    console.log(connectedPeers);
   });
 });
 
